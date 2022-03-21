@@ -11,6 +11,8 @@ using System.Collections.Generic;
 using Amazon.CognitoIdentity;
 using Amazon;
 using UnityEngine.SceneManagement;
+using System.Linq;
+using System.Runtime.Serialization.Formatters.Binary;
 
 public class AWSManager : MonoBehaviour
 {
@@ -20,7 +22,7 @@ public class AWSManager : MonoBehaviour
     {
         get
         {
-            if(_instance == null)
+            if (_instance == null)
             {
                 Debug.LogError("AWS Manager is Null");
             }
@@ -57,20 +59,20 @@ public class AWSManager : MonoBehaviour
         UnityInitializer.AttachToGameObject(this.gameObject);
         AWSConfigs.HttpClient = AWSConfigs.HttpClientOption.UnityWebRequest;
 
-       /** S3Client.ListBucketsAsync(new ListBucketsRequest(), (responseObject) =>
-        {
-            if (responseObject.Exception == null)
-            {
-                responseObject.Response.Buckets.ForEach((s3b) =>
-                {
-                    Debug.Log("Bucket Name: " + s3b.BucketName);
-                });
-            }
-            else
-            {
-                Debug.Log("AWS Error");
-            }
-        });**/
+        /** S3Client.ListBucketsAsync(new ListBucketsRequest(), (responseObject) =>
+         {
+             if (responseObject.Exception == null)
+             {
+                 responseObject.Response.Buckets.ForEach((s3b) =>
+                 {
+                     Debug.Log("Bucket Name: " + s3b.BucketName);
+                 });
+             }
+             else
+             {
+                 Debug.Log("AWS Error");
+             }
+         });**/
     }
 
     public void UploadToS3(string path, string caseID)
@@ -100,6 +102,68 @@ public class AWSManager : MonoBehaviour
         });
     }
 
+    public void GetList(string caseNumber, Action onComplete = null)
+    {
+        string target = "case#" + caseNumber;
 
+        var request = new ListObjectsRequest()
+        {
+            BucketName = "casefilesone"
+        };
 
+        S3Client.ListObjectsAsync(request, (responseObject) =>
+        {
+            if (responseObject.Exception == null)
+            {
+                bool caseFound = responseObject.Response.S3Objects.Any(obj => obj.Key == target);
+
+                if (caseFound == true)
+                {
+                    Debug.Log("Case Found");
+                    S3Client.GetObjectAsync("casefilesone", target, (responseObj) =>
+                    {
+                        
+                        if (responseObj.Response.ResponseStream != null)
+                        {
+                            byte[] data = null;
+
+                            using (StreamReader reader = new StreamReader(responseObj.Response.ResponseStream))
+                            {
+                                using (MemoryStream memory = new MemoryStream())
+                                {
+                                    var buffer = new byte[512];
+                                    var bytesRead = default(int);
+                                    
+                                    while((bytesRead = reader.BaseStream.Read(buffer, 0, buffer.Length)) > 0)
+                                    {
+                                        memory.Write(buffer, 0, bytesRead);
+                                    }
+                                    data = memory.ToArray();
+                                }
+                            }
+
+                            using (MemoryStream memory = new MemoryStream(data))
+                            {
+                                BinaryFormatter bf = new BinaryFormatter();
+                                Case downloadedCase = (Case)bf.Deserialize(memory);
+                                Debug.Log(downloadedCase.name);
+                                UIManager.Instance.activeCase = downloadedCase;
+                                if (onComplete != null)
+                                    onComplete();
+                            }
+                        }
+                    });
+                }
+                else
+                {
+                    Debug.Log("Case not Found");
+                }
+
+            }
+            else
+            {
+                Debug.Log("Error getting List of Items from S3: " + responseObject.Exception);
+            }
+        });
+    }
 }
