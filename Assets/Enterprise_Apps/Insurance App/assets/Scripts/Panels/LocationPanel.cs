@@ -1,6 +1,7 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Networking;
 using UnityEngine.UI;
 
 public class LocationPanel : MonoBehaviour, IPanel
@@ -21,7 +22,6 @@ public class LocationPanel : MonoBehaviour, IPanel
         caseNumberTitle.text = "CASE NUMBER " + UIManager.Instance.activeCase.caseID;
     }
 
-    [System.Obsolete]
     public IEnumerator Start()
     {
         //Fetch GEO Data
@@ -59,17 +59,23 @@ public class LocationPanel : MonoBehaviour, IPanel
             Debug.Log("Location Services are not Enabled");
         }
 
-
-        StartCoroutine(GetLocationRoutine());
-    }
-
-    [System.Obsolete]
-    IEnumerator GetLocationRoutine()
-    {
-        //construct appropriate url
         url = url + "center=" + xCord + "," + yCord + "&zoom=" + zoom + "&size=" + imgSize + "x" + imgSize + "&key=" + apiKey;
 
-        using (WWW map = new WWW(url))
+        StartCoroutine(GetLocationRoutine(url));
+    }
+
+
+    IEnumerator GetLocationRoutine(string url)
+    {
+        //construct appropriate url
+
+        var www = UnityWebRequestTexture.GetTexture(url);
+        yield return www.SendWebRequest();
+
+        mapImg.texture = DownloadHandlerTexture.GetContent(www);
+
+
+        /**using (WWW map = new WWW(url))
         {
             yield return map;
 
@@ -79,7 +85,7 @@ public class LocationPanel : MonoBehaviour, IPanel
             }
 
             mapImg.texture = map.texture;
-        }
+        }**/
     }
 
     public void ProcessInfo()
